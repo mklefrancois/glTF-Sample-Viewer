@@ -503,6 +503,9 @@
                                     <b-switch class="smallerLabel" v-model="dispersionEnabled" v-on:input="dispersionChanged.next($event.target.checked)">
                                         Dispersion
                                     </b-switch>
+                                    <b-switch class="smallerLabel" v-model="gaussianSplattingEnabled" v-on:input="gaussianSplattingChanged.next($event.target.checked)">
+                                        Gaussian Splatting
+                                    </b-switch>
                                 </b-field>
                                 <b-field label="Statistics" class="subtitle">
                                     <json-to-ui-template v-bind:data="statistics" v-bind:isinner="false">

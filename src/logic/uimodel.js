@@ -62,6 +62,7 @@ class UIModel {
         this.specularEnabled = app.specularChanged.pipe();
         this.emissiveStrengthEnabled = app.emissiveStrengthChanged.pipe();
         this.volumeScatteringEnabled = app.volumeScatteringChanged.pipe();
+        this.gaussianSplattingEnabled = app.gaussianSplattingChanged.pipe();
         this.iblEnabled = app.iblChanged.pipe();
         this.iblIntensity = app.iblIntensityChanged.pipe();
         this.punctualLightsEnabled = app.punctualLightsChanged.pipe();

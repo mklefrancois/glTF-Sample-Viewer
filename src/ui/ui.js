@@ -43,6 +43,7 @@ const appCreated = createApp({
             specularChanged: new Subject(),
             emissiveStrengthChanged: new Subject(),
             volumeScatteringChanged: new Subject(),
+            gaussianSplattingChanged: new Subject(),
             renderEnvChanged: new Subject(),
             addEnvironmentChanged: new Subject(),
             selectedAnimationsChanged: new Subject(),
@@ -116,6 +117,7 @@ const appCreated = createApp({
             specularEnabled: true,
             emissiveStrengthEnabled: true,
             volumeScatteringEnabled: true,
+            gaussianSplattingEnabled: true,
 
             activeTab: 0,
             tabContentHidden: true,

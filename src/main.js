@@ -374,6 +374,11 @@ export default async () => {
     );
     listenForRedraw(uiModel.volumeScatteringEnabled);
 
+    uiModel.gaussianSplattingEnabled.subscribe(
+        (enabled) => (state.renderingParameters.enabledExtensions.KHR_gaussian_splatting = enabled)
+    );
+    listenForRedraw(uiModel.gaussianSplattingEnabled);
+
     uiModel.iblEnabled.subscribe((iblEnabled) => (state.renderingParameters.useIBL = iblEnabled));
     listenForRedraw(uiModel.iblEnabled);
 
