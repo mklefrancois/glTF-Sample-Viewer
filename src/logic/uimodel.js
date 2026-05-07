@@ -49,6 +49,7 @@ class UIModel {
 
         this.exposure = app.exposureChanged.pipe();
         this.skinningEnabled = app.skinningChanged.pipe();
+        this.inputSmoothingEnabled = app.inputSmoothingChanged.pipe();
         this.morphingEnabled = app.morphingChanged.pipe();
         this.clearcoatEnabled = app.clearcoatChanged.pipe();
         this.sheenEnabled = app.sheenChanged.pipe();
