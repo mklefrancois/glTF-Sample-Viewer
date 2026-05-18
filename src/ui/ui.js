@@ -14,6 +14,7 @@ const appCreated = createApp({
             debugchannelChanged: new Subject(),
             tonemapChanged: new Subject(),
             skinningChanged: new Subject(),
+            inputSmoothingChanged: new Subject(),
             punctualLightsChanged: new Subject(),
 
             iblChanged: new Subject(),
@@ -103,6 +104,7 @@ const appCreated = createApp({
             exposureSetting: 0,
             toneMap: "Khronos PBR Neutral",
             skinning: true,
+            inputSmoothing: true,
             morphing: true,
             clearcoatEnabled: true,
             sheenEnabled: true,
