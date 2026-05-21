@@ -379,6 +379,11 @@ export default async () => {
     );
     listenForRedraw(uiModel.gaussianSplattingEnabled);
 
+    uiModel.floatingPointFramebufferEnabled.subscribe(
+        (enabled) => (state.renderingParameters.floatingPointFramebuffer = enabled)
+    );
+    listenForRedraw(uiModel.floatingPointFramebufferEnabled);
+
     uiModel.iblEnabled.subscribe((iblEnabled) => (state.renderingParameters.useIBL = iblEnabled));
     listenForRedraw(uiModel.iblEnabled);
 
