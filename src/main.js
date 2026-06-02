@@ -49,6 +49,10 @@ export default async () => {
             const func = async (model) => {
                 try {
                     const fileType = typeof model.mainFile;
+                    // TODO: Remove ignoredIssues once validator is updated to support KHR_gaussian_splatting extension
+                    const validateOptions = {
+                        ignoredIssues: ["MESH_PRIMITIVE_INVALID_ATTRIBUTE"]
+                    };
                     if (fileType == "string") {
                         const externalRefFunction = (uri) => {
                             const parent = model.mainFile.substring(
@@ -74,10 +78,9 @@ export default async () => {
                         };
                         const response = await fetch(model.mainFile);
                         const buffer = await response.arrayBuffer();
-                        return await validateBytes(new Uint8Array(buffer), {
-                            externalResourceFunction: externalRefFunction,
-                            uri: model.mainFile
-                        });
+                        validateOptions.uri = model.mainFile;
+                        validateOptions.externalResourceFunction = externalRefFunction;
+                        return await validateBytes(new Uint8Array(buffer), validateOptions);
                     } else if (Array.isArray(model.mainFile)) {
                         const externalRefFunction = (uri) => {
                             return new Promise((resolve, reject) => {
@@ -114,10 +117,9 @@ export default async () => {
                         };
 
                         const buffer = await model.mainFile[1].arrayBuffer();
-                        return await validateBytes(new Uint8Array(buffer), {
-                            externalResourceFunction: externalRefFunction,
-                            uri: model.mainFile[0]
-                        });
+                        validateOptions.uri = model.mainFile[0];
+                        validateOptions.externalResourceFunction = externalRefFunction;
+                        return await validateBytes(new Uint8Array(buffer), validateOptions);
                     }
                 } catch (error) {
                     console.error(error);
