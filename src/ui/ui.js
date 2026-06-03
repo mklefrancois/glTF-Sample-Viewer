@@ -106,6 +106,7 @@ const appCreated = createApp({
             toneMap: "Khronos PBR Neutral",
             skinning: true,
             floatingPointFramebuffer: true,
+            supportsFloatingPointFramebuffer: true,
             morphing: true,
             clearcoatEnabled: true,
             sheenEnabled: true,

@@ -14,6 +14,10 @@ export default async () => {
         alpha: false,
         antialias: true
     });
+    app.supportsFloatingPointFramebuffer =
+        !!context.getExtension("EXT_color_buffer_half_float") ||
+        !!context.getExtension("EXT_color_buffer_float");
+
     const view = new GltfView(context);
     const resourceLoader = view.createResourceLoader();
     const state = view.createState();
