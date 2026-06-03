@@ -461,26 +461,68 @@ export default async () => {
     const sceneChangedStateObservable = uiModel.scene.pipe(map(() => state));
     uiModel.attachCameraChangeObservable(sceneChangedStateObservable);
 
-    uiModel.orbit.subscribe((orbit) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.orbit(orbit.deltaPhi, orbit.deltaTheta);
-        }
-    });
+    // Smooths discrete drag/scroll input deltas into per-frame motion.
+    // Each input delta becomes a short pulse that fades in then out following
+    // easeInOutSine, so motion accelerates and decelerates smoothly instead of
+    // snapping with raw mousemove/wheel timing.
+    const dragSmoother = (() => {
+        let smoothMs = 330;
+        const easeInOutSine = (t) => 0.5 * (1 - Math.cos(Math.PI * t));
+        const orbitPulses = [];
+        const panPulses = [];
+        const zoomPulses = [];
+        const isEnabled = () => state.cameraNodeIndex === undefined;
+        const push = (pulses, a, b) => {
+            if (!isEnabled()) return;
+            pulses.push({ a, b, startTime: performance.now(), appliedA: 0, appliedB: 0 });
+        };
+        const drain = (pulses, applyFn) => {
+            if (pulses.length === 0) return false;
+            const now = performance.now();
+            let netA = 0;
+            let netB = 0;
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                const p = pulses[i];
+                const t = smoothMs > 0 ? Math.min(1, (now - p.startTime) / smoothMs) : 1;
+                const eased = easeInOutSine(t);
+                const targetA = p.a * eased;
+                const targetB = p.b * eased;
+                netA += targetA - p.appliedA;
+                netB += targetB - p.appliedB;
+                p.appliedA = targetA;
+                p.appliedB = targetB;
+                if (t >= 1) pulses.splice(i, 1);
+            }
+            const moved = netA !== 0 || netB !== 0;
+            if (moved) applyFn(netA, netB);
+            return moved || pulses.length > 0;
+        };
+        return {
+            pushOrbit: (dPhi, dTheta) => push(orbitPulses, dPhi, dTheta),
+            pushPan: (dX, dY) => push(panPulses, dX, dY),
+            pushZoom: (dZoom) => push(zoomPulses, dZoom, 0),
+            setSmoothMs: (ms) => { smoothMs = Math.max(0, ms); },
+            tick: () => {
+                const o = drain(orbitPulses, (a, b) => state.userCamera.orbit(a, b));
+                const p = drain(panPulses, (a, b) => state.userCamera.pan(a, b));
+                const z = drain(zoomPulses, (a) => state.userCamera.zoomBy(a));
+                return o || p || z;
+            }
+        };
+    })();
+
+    uiModel.orbit.subscribe((orbit) =>
+        dragSmoother.pushOrbit(orbit.deltaPhi, orbit.deltaTheta)
+    );
     listenForRedraw(uiModel.orbit);
 
-    uiModel.pan.subscribe((pan) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.pan(pan.deltaX, -pan.deltaY);
-        }
-    });
+    uiModel.pan.subscribe((pan) => dragSmoother.pushPan(pan.deltaX, -pan.deltaY));
     listenForRedraw(uiModel.pan);
 
-    uiModel.zoom.subscribe((zoom) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.zoomBy(zoom.deltaZoom);
-        }
-    });
+    uiModel.zoom.subscribe((zoom) => dragSmoother.pushZoom(zoom.deltaZoom));
     listenForRedraw(uiModel.zoom);
+
+    uiModel.inputSmoothingEnabled.subscribe((enabled) => dragSmoother.setSmoothMs(enabled ? 330 : 0));
 
     listenForRedraw(gltfLoaded);
 
@@ -488,6 +530,8 @@ export default async () => {
     const past = {};
     const update = () => {
         const devicePixelRatio = window.devicePixelRatio || 1;
+
+        redraw |= dragSmoother.tick();
 
         // set the size of the drawingBuffer based on the size it's displayed.
         canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
