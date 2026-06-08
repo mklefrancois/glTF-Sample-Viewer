@@ -39,3 +39,4 @@ jobs:
                       interactivity
                       physics
                       scatter
+                      gaussian-splatting
