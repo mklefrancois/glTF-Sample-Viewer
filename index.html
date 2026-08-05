@@ -151,7 +151,7 @@
 
                             <!-- Tab Content: Models -->
                             <div class="tabContent">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 0)">
                                 <h2 class="title is-spaced">Models</h2>
                                 <b-field label="Models" class="subtitle">
@@ -219,7 +219,7 @@
                             </template>
 
                             <div class="tabContent">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 1)">
                                 <h2 class="title  is-spaced">Display</h2>
                                 <b-field label="Lighting" class="subtitle">
@@ -315,10 +315,10 @@
                             </template>
     
                             <div class="tabContent" style="display: flex; flex-direction: column; height: inherit;">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 2)">
                                 <h2 class="title is-spaced" v-bind:data="validationReport">glTF Validator</h2>
-                                    <div class="modelCredit" v-show='validationReport.error === undefined'>
+                                    <div class="modelCredit" v-show='validationReport?.error === undefined'>
                                         <p>Number of errors: {{validationReport?.issues?.numErrors ?? 0}}</p>
                                         <p>Number of warnings: {{validationReport?.issues?.numWarnings ?? 0}}</p>
                                         <p>Number of infos: {{validationReport?.issues?.numInfos ?? 0}}</p>
@@ -328,12 +328,12 @@
                                         <p style="margin-top: 10px; margin-bottom: 10px; font-size:smaller;">{{validationReportDescription?.message}}</p>
                                     </div>
 
-                                    <div v-show="validationReport.error !== undefined">
-                                        <p style="margin-top: 10px; margin-bottom: 10px; color:red;">{{validationReport.error}}</p>
+                                    <div v-show="validationReport?.error !== undefined">
+                                        <p style="margin-top: 10px; margin-bottom: 10px; color:red;">{{validationReport?.error}}</p>
                                     </div>
 
-                                    <button v-show="validationReport.error === undefined" class="button is-rounded" style="width: fit-content; flex-shrink: 0; margin-bottom: 12px;" v-on:click="copyToClipboard(JSON.stringify(validationReport, undefined, 4))">Copy</button>
-                                    <button v-show="validationReport.error === undefined" class="button is-rounded" style="width: fit-content; flex-shrink: 0;" v-on:click="downloadJSON(validationReport?.uri?.substring(validationReport.uri.lastIndexOf('/') + 1) + '.report.json', validationReport)">Download</button>
+                                    <button v-show="validationReport?.error === undefined" class="button is-rounded" style="width: fit-content; flex-shrink: 0; margin-bottom: 12px;" v-on:click="copyToClipboard(JSON.stringify(validationReport, undefined, 4))">Copy</button>
+                                    <button v-show="validationReport?.error === undefined" class="button is-rounded" style="width: fit-content; flex-shrink: 0;" v-on:click="downloadJSON(validationReport?.uri?.substring(validationReport?.uri?.lastIndexOf('/') + 1) + '.report.json', validationReport)">Download</button>
                                     <span style="margin-top: 5px;">Powered by <a href="https://github.com/KhronosGroup/glTF-Validator" target="_blank" rel="noopener noreferrer">glTF-Validator</a></span>
                                 </b-field>
                             </div>
@@ -359,7 +359,7 @@
                             </template>
 
                             <div class="tabContent" v-if="!showGraphsTab">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 3)">
                                 <h2 class="title is-spaced" style="margin-bottom: 0.5em;">Animations</h2>
                                 <label class="subtitle">Animation Controls</label>
@@ -556,7 +556,7 @@
                             </template>
 
                             <div class="tabContent">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 4)">
                                 <h2 class="title is-spaced" style="margin-bottom: 0.5em;">Physics</h2>
                                 <label class="subtitle">Physics Controls</label>
@@ -648,7 +648,7 @@
                             </template>
 
                             <div class="tabContent">
-                                <img src="assets/ui/Navigation_right_20px.svg" width="30px"
+                                <img src="assets/ui/Navigation_right_20px.svg" class="tabNavigationIcon" width="30px"
                                     @click="collapseActiveTab($event, 6)">
                                 <h2 class="title is-spaced">Advanced Controls</h2>
                                 <b-field label="Capture Canvas" class="subtitle">
@@ -668,6 +668,8 @@
                                     </b-select>
                                 </b-field>
 
+                                <b-switch v-model="inputSmoothing" v-on:input="inputSmoothingChanged.next($event.target.checked)">Input Smoothing</b-switch>
+                                <br>
                                 <b-switch v-model="skinning" v-on:input="skinningChanged.next($event.target.checked)">Skinning</b-switch>
                                 <br>
                                 <b-switch v-model="morphing" v-on:input="morphingChanged.next($event.target.checked)">Morphing</b-switch>
@@ -675,6 +677,8 @@
                                 <b-switch v-model="hoverabilityEnabled" v-on:input="hoverabilityChanged.next($event.target.checked)">KHR_node_hoverability</b-switch>
                                 <b-switch v-model="selectabilityEnabled" v-on:input="selectabilityChanged.next($event.target.checked)">KHR_node_selectability</b-switch>
                                 <b-switch v-model="nodeVisibilityEnabled" v-on:input="nodeVisibilityChanged.next($event.target.checked)">KHR_node_visibility</b-switch>
+                                <br>
+                                <b-switch v-model="floatingPointFramebuffer" :disabled="!supportsFloatingPointFramebuffer" v-on:input="floatingPointFramebufferChanged.next($event.target.checked)">Floating-Point Framebuffer</b-switch>
                                 <b-field label="Current Camera Values" class="subtitle">
                                     <button v-on:click="cameraExport.next($event.target.value)" type="button" class="button is-rounded"><i
                                             class="fa fa-download downloadIcon"></i>Download as .gltf</button>
@@ -719,6 +723,9 @@
                                     </b-switch>
                                     <b-switch class="smallerLabel" v-model="dispersionEnabled" v-on:input="dispersionChanged.next($event.target.checked)">
                                         Dispersion
+                                    </b-switch>
+                                    <b-switch class="smallerLabel" v-model="gaussianSplattingEnabled" v-on:input="gaussianSplattingChanged.next($event.target.checked)">
+                                        Gaussian Splatting
                                     </b-switch>
                                 </b-field>
                                 <b-field label="Statistics" class="subtitle">

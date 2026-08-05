@@ -295,7 +295,7 @@ div .field.has-addons
 }
 
 .b-slider.iblIntensitySlider
-{    
+{
     margin-left: 10px;
     margin-right: 10px;
     margin-bottom: 50px;
@@ -362,8 +362,20 @@ button.button
 .canvasUIMaximize:hover {
     overflow: visible;
 }
+.maximizeCanvasIcon {
+    transition: scale 0.2s;
+    cursor: pointer;
+}
 .maximizeCanvasIcon:hover {
-    transform: scale(1.2);
+    scale: 1.2;
+}
+
+.tabNavigationIcon {
+    transition: scale 0.2s;
+    cursor: pointer;
+}
+.tabNavigationIcon:hover {
+    scale: 1.2;
 }
 
 .dg li.gui-stats:not(.folder) {

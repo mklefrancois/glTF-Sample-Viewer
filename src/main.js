@@ -1,4 +1,4 @@
-import { GltfView } from "@khronosgroup/gltf-viewer";
+import { GltfView, ResourceLoaderUtils } from "@khronosgroup/gltf-viewer";
 
 import { UIModel } from "./logic/uimodel.js";
 import { app } from "./ui/ui.js";
@@ -14,6 +14,10 @@ export default async () => {
         alpha: false,
         antialias: true
     });
+    app.supportsFloatingPointFramebuffer =
+        !!context.getExtension("EXT_color_buffer_half_float") ||
+        !!context.getExtension("EXT_color_buffer_float");
+
     const view = new GltfView(context);
     const resourceLoader = view.createResourceLoader();
     const state = view.createState();
@@ -37,6 +41,9 @@ export default async () => {
         const message = "Interactivity test failed";
         console.error(message);
     });
+    
+    const emptyGltf = await resourceLoader.loadGltf(undefined, undefined, false);
+
     const pathProvider = new GltfModelPathProvider(
         "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main"
     );
@@ -65,6 +72,10 @@ export default async () => {
             const func = async (model) => {
                 try {
                     const fileType = typeof model.mainFile;
+                    // TODO: Remove ignoredIssues once validator is updated to support KHR_gaussian_splatting extension
+                    const validateOptions = {
+                        ignoredIssues: ["MESH_PRIMITIVE_INVALID_ATTRIBUTE"]
+                    };
                     if (fileType == "string") {
                         const externalRefFunction = (uri) => {
                             const parent = model.mainFile.substring(
@@ -90,18 +101,25 @@ export default async () => {
                         };
                         const response = await fetch(model.mainFile);
                         const buffer = await response.arrayBuffer();
-                        return await validateBytes(new Uint8Array(buffer), {
-                            externalResourceFunction: externalRefFunction,
-                            uri: model.mainFile
-                        });
+                        validateOptions.uri = model.mainFile;
+                        validateOptions.externalResourceFunction = externalRefFunction;
+                        return await validateBytes(new Uint8Array(buffer), validateOptions);
                     } else if (Array.isArray(model.mainFile)) {
                         const externalRefFunction = (uri) => {
-                            uri = "/" + uri;
                             return new Promise((resolve, reject) => {
                                 let foundFile = undefined;
                                 for (let i = 0; i < model.additionalFiles.length; i++) {
                                     const file = model.additionalFiles[i];
-                                    if (file[0] == uri) {
+                                    let actualPath = uri;
+                                    if (!ResourceLoaderUtils.isAbsoluteUrl(uri)) {
+                                        const parentPath = ResourceLoaderUtils.getContainingFolder(
+                                            model.mainFile[0]
+                                        );
+                                        actualPath = ResourceLoaderUtils.cleanRelativePath(
+                                            parentPath + uri
+                                        );
+                                    }
+                                    if (file[0] == actualPath) {
                                         foundFile = file[1];
                                         break;
                                     }
@@ -122,10 +140,9 @@ export default async () => {
                         };
 
                         const buffer = await model.mainFile[1].arrayBuffer();
-                        return await validateBytes(new Uint8Array(buffer), {
-                            externalResourceFunction: externalRefFunction,
-                            uri: model.mainFile[0]
-                        });
+                        validateOptions.uri = model.mainFile[0];
+                        validateOptions.externalResourceFunction = externalRefFunction;
+                        return await validateBytes(new Uint8Array(buffer), validateOptions);
                     }
                 } catch (error) {
                     console.error(error);
@@ -151,7 +168,7 @@ export default async () => {
 
             return from(
                 resourceLoader
-                    .loadGltf(model.mainFile, model.additionalFiles)
+                    .loadGltf(model.mainFile, model.additionalFiles, false)
                     .then((gltf) => {
                         state.gltf = gltf;
                         const defaultScene = state.gltf.scene;
@@ -206,15 +223,11 @@ export default async () => {
                     })
                     .catch((error) => {
                         console.error("Loading failed: " + error);
-                        console.trace(error);
-                        resourceLoader.loadGltf(undefined, undefined).then((gltf) => {
-                            state.gltf = gltf;
-                            state.sceneIndex = 0;
-                            state.cameraNodeIndex = undefined;
-
-                            uiModel.exitLoadingState();
-                            redraw = true;
-                        });
+                        state.gltf = emptyGltf;
+                        state.sceneIndex = 0;
+                        state.cameraNodeIndex = undefined;
+                        uiModel.exitLoadingState();
+                        redraw = true;
                         return state;
                     })
             );
@@ -445,6 +458,16 @@ export default async () => {
                 nodeVisibilityEnabled)
     );
     listenForRedraw(uiModel.nodeVisibilityEnabled);
+    
+    uiModel.gaussianSplattingEnabled.subscribe(
+        (enabled) => (state.renderingParameters.enabledExtensions.KHR_gaussian_splatting = enabled)
+    );
+    listenForRedraw(uiModel.gaussianSplattingEnabled);
+
+    uiModel.floatingPointFramebufferEnabled.subscribe(
+        (enabled) => (state.renderingParameters.floatingPointFramebuffer = enabled)
+    );
+    listenForRedraw(uiModel.floatingPointFramebufferEnabled);
 
     uiModel.iblEnabled.subscribe((iblEnabled) => (state.renderingParameters.useIBL = iblEnabled));
     listenForRedraw(uiModel.iblEnabled);
@@ -588,26 +611,68 @@ export default async () => {
     const sceneChangedStateObservable = uiModel.scene.pipe(map(() => state));
     uiModel.attachCameraChangeObservable(sceneChangedStateObservable);
 
-    uiModel.orbit.subscribe((orbit) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.orbit(orbit.deltaPhi, orbit.deltaTheta);
-        }
-    });
+    // Smooths discrete drag/scroll input deltas into per-frame motion.
+    // Each input delta becomes a short pulse that fades in then out following
+    // easeInOutSine, so motion accelerates and decelerates smoothly instead of
+    // snapping with raw mousemove/wheel timing.
+    const dragSmoother = (() => {
+        let smoothMs = 330;
+        const easeInOutSine = (t) => 0.5 * (1 - Math.cos(Math.PI * t));
+        const orbitPulses = [];
+        const panPulses = [];
+        const zoomPulses = [];
+        const isEnabled = () => state.cameraNodeIndex === undefined;
+        const push = (pulses, a, b) => {
+            if (!isEnabled()) return;
+            pulses.push({ a, b, startTime: performance.now(), appliedA: 0, appliedB: 0 });
+        };
+        const drain = (pulses, applyFn) => {
+            if (pulses.length === 0) return false;
+            const now = performance.now();
+            let netA = 0;
+            let netB = 0;
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                const p = pulses[i];
+                const t = smoothMs > 0 ? Math.min(1, (now - p.startTime) / smoothMs) : 1;
+                const eased = easeInOutSine(t);
+                const targetA = p.a * eased;
+                const targetB = p.b * eased;
+                netA += targetA - p.appliedA;
+                netB += targetB - p.appliedB;
+                p.appliedA = targetA;
+                p.appliedB = targetB;
+                if (t >= 1) pulses.splice(i, 1);
+            }
+            const moved = netA !== 0 || netB !== 0;
+            if (moved) applyFn(netA, netB);
+            return moved || pulses.length > 0;
+        };
+        return {
+            pushOrbit: (dPhi, dTheta) => push(orbitPulses, dPhi, dTheta),
+            pushPan: (dX, dY) => push(panPulses, dX, dY),
+            pushZoom: (dZoom) => push(zoomPulses, dZoom, 0),
+            setSmoothMs: (ms) => { smoothMs = Math.max(0, ms); },
+            tick: () => {
+                const o = drain(orbitPulses, (a, b) => state.userCamera.orbit(a, b));
+                const p = drain(panPulses, (a, b) => state.userCamera.pan(a, b));
+                const z = drain(zoomPulses, (a) => state.userCamera.zoomBy(a));
+                return o || p || z;
+            }
+        };
+    })();
+
+    uiModel.orbit.subscribe((orbit) =>
+        dragSmoother.pushOrbit(orbit.deltaPhi, orbit.deltaTheta)
+    );
     listenForRedraw(uiModel.orbit);
 
-    uiModel.pan.subscribe((pan) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.pan(pan.deltaX, -pan.deltaY);
-        }
-    });
+    uiModel.pan.subscribe((pan) => dragSmoother.pushPan(pan.deltaX, -pan.deltaY));
     listenForRedraw(uiModel.pan);
 
-    uiModel.zoom.subscribe((zoom) => {
-        if (state.cameraNodeIndex === undefined) {
-            state.userCamera.zoomBy(zoom.deltaZoom);
-        }
-    });
+    uiModel.zoom.subscribe((zoom) => dragSmoother.pushZoom(zoom.deltaZoom));
     listenForRedraw(uiModel.zoom);
+
+    uiModel.inputSmoothingEnabled.subscribe((enabled) => dragSmoother.setSmoothMs(enabled ? 330 : 0));
 
     listenForRedraw(gltfLoaded);
 
@@ -636,6 +701,8 @@ export default async () => {
     const update = () => {
         const devicePixelRatio = window.devicePixelRatio || 1;
 
+        redraw |= dragSmoother.tick();
+
         // set the size of the drawingBuffer based on the size it's displayed.
         canvas.width = Math.floor(canvas.clientWidth * devicePixelRatio);
         canvas.height = Math.floor(canvas.clientHeight * devicePixelRatio);
@@ -643,6 +710,7 @@ export default async () => {
         redraw |= state.graphController.playing;
         redraw |= past.width != canvas.width || past.height != canvas.height;
         redraw |= state.physicsController.enabled && state.physicsController.playing;
+        redraw |= state.needsRedraw;
 
         // Do not redraw when loading is in progress
         if (app.loadingComponent !== undefined) {

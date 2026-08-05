@@ -49,6 +49,7 @@ class UIModel {
 
         this.exposure = app.exposureChanged.pipe();
         this.skinningEnabled = app.skinningChanged.pipe();
+        this.inputSmoothingEnabled = app.inputSmoothingChanged.pipe();
         this.morphingEnabled = app.morphingChanged.pipe();
         this.clearcoatEnabled = app.clearcoatChanged.pipe();
         this.sheenEnabled = app.sheenChanged.pipe();
@@ -65,6 +66,8 @@ class UIModel {
         this.hoverabilityEnabled = app.hoverabilityChanged.pipe();
         this.selectabilityEnabled = app.selectabilityChanged.pipe();
         this.nodeVisibilityEnabled = app.nodeVisibilityChanged.pipe();
+        this.gaussianSplattingEnabled = app.gaussianSplattingChanged.pipe();
+        this.floatingPointFramebufferEnabled = app.floatingPointFramebufferChanged.pipe();
         this.iblEnabled = app.iblChanged.pipe();
         this.iblIntensity = app.iblIntensityChanged.pipe();
         this.punctualLightsEnabled = app.punctualLightsChanged.pipe();
@@ -192,7 +195,17 @@ class UIModel {
             });
 
         let droppedGLtfFileName = inputObservables.droppedGltf.pipe(
-            map((droppedGltf) => droppedGltf.mainFile.name)
+            map((droppedGltf) => {
+                // Right now mainFile should always be an array of length.
+                // The first element is just the filename as string, the second element is the File object.
+                // To prevent potential errors where this might not be the case,
+                // we have this if and return undefined
+                if (droppedGltf.mainFile.length > 1) {
+                    return droppedGltf.mainFile[1].name;
+                } else {
+                    return undefined;
+                }
+            })
         );
 
         if (modelURL !== null) {
@@ -415,38 +428,29 @@ const getInputObservables = (inputElement, app) => {
 
     // Partition files into a .gltf or .glb and additional files like buffers and textures
     observables.droppedGltf = droppedFiles.pipe(
-        map((files) => ({
-            mainFile: files.find(([path]) => path.endsWith(".glb") || path.endsWith(".gltf")),
-            additionalFiles: files.filter(
-                (file) => !file[0].endsWith(".glb") && !file[0].endsWith(".gltf")
-            )
-        })),
-        map(({ mainFile, additionalFiles }) => {
-            if (mainFile[0].endsWith(".gltf")) {
-                // extract folder path from gltf file
-                let folderPath = mainFile[0];
-                // replace all \ by /
-                folderPath = folderPath.replaceAll("\\", "/");
-                // remove filename
-                folderPath = folderPath.substr(0, folderPath.lastIndexOf("/"));
+        map((files) => {
+            files = files.map((file) => {
+                let filePath = file[0].replaceAll("\\", "/");
+                return [filePath.substring(1), file[1]]; // remove leading slash
+            });
+            return {
+                mainFile: files.find(([path]) => path.endsWith(".glb") || path.endsWith(".gltf")),
+                additionalFiles: files.filter(
+                    (file) => !file[0].endsWith(".glb") && !file[0].endsWith(".gltf")
+                )
+            };
+        }),
+        filter(({ mainFile, additionalFiles }) => {
+            let isDefined = mainFile !== undefined;
 
-                if (folderPath !== "") {
-                    // remove folder path from additional files
-                    additionalFiles = additionalFiles.map((file) => {
-                        let filePath = file[0].replaceAll("\\", "/");
-                        if (filePath.startsWith(folderPath)) {
-                            return [filePath.substr(folderPath.length), file[1]];
-                        } else {
-                            return file;
-                        }
-                    });
-                }
+            if (
+                !isDefined &&
+                !(additionalFiles.length === 1 && additionalFiles[0][0].endsWith(".hdr"))
+            ) {
+                console.warn("Only glTF, glb and hdr files can be loaded on drop.");
             }
 
-            return {
-                mainFile: mainFile,
-                additionalFiles: additionalFiles
-            };
+            return isDefined;
         }),
         filter((files) => files.mainFile !== undefined)
     );
