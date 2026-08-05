@@ -59,6 +59,13 @@ const appCreated = createApp({
             selectedAnimationsChanged: new Subject(),
             selectedEnvironmentChanged: new Subject(),
 
+            physicsEnabledChanged: new Subject(),
+            physicsResetChanged: new Subject(),
+            physicsEngineChanged: new Subject(),
+            physicsStepChanged: new Subject(),
+            physicsColliderDebugChanged: new Subject(),
+            physicsJointDebugChanged: new Subject(),
+
             validatorChanged: new Subject(),
 
             fullheight: true,
@@ -92,9 +99,13 @@ const appCreated = createApp({
             selectedAnimations: [],
             disabledAnimations: [],
             selectedGraph: null,
+            selectedPhysicsEngine: "nvidia-physx",
+            physicsColliderDebug: false,
+            physicsJointDebug: false,
 
             animationState: true,
             graphState: true,
+            physicsState: true,
 
             validationReport: {},
             validationReportDescription: {},
@@ -141,6 +152,9 @@ const appCreated = createApp({
             nodeVisibilityEnabled: true,
             gaussianSplattingEnabled: true,
 
+            hasPhysics: false,
+
+            activeTabIndex: 0,
             activeTab: 0,
             tabContentHidden: true,
             loadingComponent: undefined,
@@ -270,6 +284,9 @@ const appCreated = createApp({
         },
         showGraphsTab() {
             return this.hasInteractivityGraphs && this.interactivity;
+        },
+        showPhysicsTab() {
+            return this.hasPhysics;
         },
         currentCustomEvent() {
             if (!this.selectedCustomEvent || !this.customEvents) return null;
@@ -430,24 +447,24 @@ const appCreated = createApp({
                     // remove is-active class if tabs are hidden
                     event.stopPropagation();
 
-                    let navElements =
+                    const navElements =
                         document.getElementById("tabsContainer").children[0].children[0].children;
                     for (let elem of navElements) {
                         elem.classList.remove("is-active");
                     }
                 } else {
                     // add is-active class to correct element
-                    let activeNavElement =
+                    const activeNavElement =
                         document.getElementById("tabsContainer").children[0].children[0].children[
-                            item
+                            this.activeTabIndex
                         ];
                     activeNavElement.classList.add("is-active");
                 }
-                return;
             } else {
                 // reset tab visibility
                 this.tabContentHidden = false;
             }
+            this.activeTab = item;
         },
         warn(message) {
             this.$buefy.toast.open({
