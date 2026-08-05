@@ -63,6 +63,9 @@ class UIModel {
         this.specularEnabled = app.specularChanged.pipe();
         this.emissiveStrengthEnabled = app.emissiveStrengthChanged.pipe();
         this.volumeScatteringEnabled = app.volumeScatteringChanged.pipe();
+        this.hoverabilityEnabled = app.hoverabilityChanged.pipe();
+        this.selectabilityEnabled = app.selectabilityChanged.pipe();
+        this.nodeVisibilityEnabled = app.nodeVisibilityChanged.pipe();
         this.gaussianSplattingEnabled = app.gaussianSplattingChanged.pipe();
         this.floatingPointFramebufferEnabled = app.floatingPointFramebufferChanged.pipe();
         this.iblEnabled = app.iblChanged.pipe();
@@ -73,6 +76,7 @@ class UIModel {
         this.addEnvironment = app.addEnvironmentChanged.pipe();
         this.captureCanvas = app.captureCanvas.pipe();
         this.cameraValuesExport = app.cameraExport.pipe();
+        this.interactivityEnabled = app.interactivityChanged.pipe();
 
         const initialClearColor = "#303542";
         this.app.clearColor = initialClearColor;
@@ -89,7 +93,12 @@ class UIModel {
         );
 
         this.animationPlay = app.animationPlayChanged.pipe();
+        this.graphPlay = app.graphPlayChanged.pipe();
+        this.animationReset = app.animationResetChanged.pipe();
+        this.graphReset = app.graphResetChanged.pipe();
+        this.customEventSend = app.customEventSendClicked.pipe();
         this.activeAnimations = app.selectedAnimationsChanged.pipe();
+        this.selectedGraph = app.selectedGraphChanged.pipe();
 
         const canvas = document.getElementById("canvas");
         canvas.addEventListener("dragenter", () => (this.app.showDropDownOverlay = true));
@@ -221,6 +230,8 @@ class UIModel {
         this.orbit = inputObservables.orbit;
         this.pan = inputObservables.pan;
         this.zoom = inputObservables.zoom;
+        this.selection = inputObservables.selection;
+        this.moveSelection = inputObservables.move;
     }
 
     attachGltfLoaded(gltfLoaded) {
@@ -238,21 +249,39 @@ class UIModel {
             }));
 
             this.app.selectedAnimations = state.animationIndices;
+            this.app.animationState = true;
+            this.app.graphState = true;
 
-            if (gltf && gltf.variants) {
+            if (gltf && gltf?.extensions?.KHR_materials_variants?.variants !== undefined) {
                 this.app.materialVariants = [
                     "None",
-                    ...gltf.variants.map((variant) => variant?.name ?? "Unnamed")
+                    ...gltf.extensions.KHR_materials_variants.variants.map(
+                        (variant) => variant?.name ?? "Unnamed"
+                    )
                 ];
             } else {
                 this.app.materialVariants = ["None"];
             }
-
-            this.app.setAnimationState(true);
             this.app.animations = gltf.animations.map((animation, index) => ({
                 title: animation.name ?? `Animation ${index}`,
                 index: index
             }));
+
+            // Set up interactivity graphs if available
+            if (
+                gltf?.extensions?.KHR_interactivity?.graphs !== undefined &&
+                state.renderingParameters.enabledExtensions.KHR_interactivity
+            ) {
+                this.app.graphs = gltf.extensions.KHR_interactivity.graphs.map((graph, index) => ({
+                    title: graph.name ?? `Graph ${index}`,
+                    index: index
+                }));
+                this.app.selectedGraph = state.graphController.graphIndex;
+                this.app.customEvents = state.graphController.customEvents || [];
+            } else {
+                this.app.graphs = [];
+                this.app.customEvents = [];
+            }
 
             this.app.xmp =
                 gltf?.extensions?.KHR_xmp_json_ld?.packets[
@@ -423,13 +452,36 @@ const getInputObservables = (inputElement, app) => {
         map((file) => ({ hdr_path: file }))
     );
 
-    const mouseMove = fromEvent(document, "mousemove");
+    const mouseMove = merge(
+        fromEvent(inputElement, "mousemove"),
+        fromEvent(inputElement, "mouseout")
+    );
     const mouseDown = fromEvent(inputElement, "mousedown");
     const mouseUp = merge(fromEvent(document, "mouseup"), fromEvent(document, "mouseleave"));
+    const click = fromEvent(inputElement, "click");
 
     inputElement.addEventListener("mousemove", (event) => event.preventDefault());
     inputElement.addEventListener("mousedown", (event) => event.preventDefault());
     inputElement.addEventListener("mouseup", (event) => event.preventDefault());
+    inputElement.addEventListener("dblclick", (event) => event.preventDefault());
+    inputElement.addEventListener("click", (event) => event.preventDefault());
+    inputElement.addEventListener("mouseout", (event) => event.preventDefault());
+
+    const selection = click.pipe(
+        filter((event) => event.button === 0),
+        map((clickEvent) => {
+            return { x: clickEvent.pageX, y: clickEvent.pageY };
+        })
+    );
+
+    const move = mouseMove.pipe(
+        map((moveEvent) => {
+            if (moveEvent.type === "mouseout") {
+                return { x: undefined, y: undefined };
+            }
+            return { x: moveEvent.pageX, y: moveEvent.pageY };
+        })
+    );
 
     const mouseOrbit = mouseDown.pipe(
         filter((event) => event.button === 0 && event.shiftKey === false),
@@ -543,7 +595,8 @@ const getInputObservables = (inputElement, app) => {
     observables.orbit = merge(mouseOrbit, touchOrbit);
     observables.pan = mousePan;
     observables.zoom = merge(mouseZoom, touchZoom);
-
+    observables.selection = selection;
+    observables.move = move;
     // disable context menu
     inputElement.oncontextmenu = () => false;
 
