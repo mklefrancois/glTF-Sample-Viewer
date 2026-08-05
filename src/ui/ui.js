@@ -15,6 +15,7 @@ const appCreated = createApp({
             debugchannelChanged: new Subject(),
             tonemapChanged: new Subject(),
             skinningChanged: new Subject(),
+            inputSmoothingChanged: new Subject(),
             punctualLightsChanged: new Subject(),
 
             iblChanged: new Subject(),
@@ -51,6 +52,8 @@ const appCreated = createApp({
             hoverabilityChanged: new Subject(),
             selectabilityChanged: new Subject(),
             nodeVisibilityChanged: new Subject(),
+            gaussianSplattingChanged: new Subject(),
+            floatingPointFramebufferChanged: new Subject(),
             renderEnvChanged: new Subject(),
             addEnvironmentChanged: new Subject(),
             selectedAnimationsChanged: new Subject(),
@@ -116,6 +119,9 @@ const appCreated = createApp({
             exposureSetting: 0,
             toneMap: "Khronos PBR Neutral",
             skinning: true,
+            inputSmoothing: true,
+            floatingPointFramebuffer: true,
+            supportsFloatingPointFramebuffer: true,
             morphing: true,
             interactivity: true,
             clearcoatEnabled: true,
@@ -133,6 +139,7 @@ const appCreated = createApp({
             hoverabilityEnabled: true,
             selectabilityEnabled: true,
             nodeVisibilityEnabled: true,
+            gaussianSplattingEnabled: true,
 
             activeTab: 0,
             tabContentHidden: true,
@@ -331,7 +338,7 @@ const appCreated = createApp({
             let info = "";
             let color = "white";
             const padding = this.isMobile ? "right:-3px;top:-18px;" : "right:-18px;top:-18px;";
-            if (this.validationReport.error) {
+            if (this.validationReport?.error) {
                 info = "X";
                 color = "red";
                 return (
